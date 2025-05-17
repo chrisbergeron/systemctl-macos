@@ -1,0 +1,59 @@
+#!/bin/bash
+
+PLIST_DIR="$HOME/Library/LaunchAgents"
+
+usage() {
+    echo "Usage: $0 {start|stop|restart|status|list|enable|disable|logs} [plist]"
+    exit 1
+}
+
+action=$1
+plist=$2
+
+[ -z "$action" ] && usage
+[ "$action" == "-h" ] || [ "$action" == "--help" ] && usage
+
+if [[ -n "$plist" && "$plist" != *.plist ]]; then
+    plist="$plist.plist"
+fi
+
+plist_basename="${plist%.plist}"
+plist_path="$PLIST_DIR/$plist"
+
+case "$action" in
+    list)
+        echo "Available LaunchAgents:"
+        ls "$PLIST_DIR"/*.plist 2>/dev/null | xargs -n 1 basename
+        ;;
+    start)
+        launchctl bootstrap gui/$(id -u) "$plist_path"
+        ;;
+    stop)
+        launchctl bootout gui/$(id -u) "$plist_path"
+        ;;
+    restart)
+        launchctl bootout gui/$(id -u) "$plist_path" 2>/dev/null
+        launchctl bootstrap gui/$(id -u) "$plist_path"
+        ;;
+    status)
+        launchctl print gui/$(id -u)/"$plist_basename" || echo "Not running"
+        ;;
+    enable)
+        launchctl enable gui/$(id -u)/"$plist_basename"
+        ;;
+    disable)
+        launchctl disable gui/$(id -u)/"$plist_basename"
+        ;;
+    logs)
+        stdout=$(defaults read "$plist_path" StandardOutPath 2>/dev/null)
+        stderr=$(defaults read "$plist_path" StandardErrorPath 2>/dev/null)
+
+        [[ -n "$stdout" ]] && echo "STDOUT: $stdout"
+        [[ -n "$stderr" ]] && echo "STDERR: $stderr"
+
+        [[ -z "$stdout" && -z "$stderr" ]] && echo "No logs defined in plist."
+        ;;
+    *)
+        usage
+        ;;
+esac
